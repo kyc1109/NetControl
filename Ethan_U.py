@@ -68,6 +68,9 @@ def get_conn():
                     conn.sendall(send_data2.encode('utf-8'))
                     conn.close()
                 elif data.decode("utf-8").lower()=="r":
+                    dirname, filename = os.path.split(os.path.abspath(__file__))
+                    filename=filename.replace(".py", ".exe")
+                    filefullpathname=dirname+"\\"+filename
                     regkey="HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
                     os.system("reg delete "+regkey+" /v stress_"+filename.replace(".exe","")+" /f")
                     conn.close()
