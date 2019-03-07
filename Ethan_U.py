@@ -53,8 +53,8 @@ def get_conn():
     #2==================================
         try:
             conn, addr = s.accept()     # Establish connection with client.
-            print('Get connection from', addr) #get conn from server
-            print('SUT received', conn.recv(1024).decode("utf-8")) #R0 Hello server!, repr() like as str()
+            #print('Get connection from', addr) #get conn from server
+            #print('SUT received', conn.recv(1024).decode("utf-8")) #R0 Hello server!, repr() like as str()
 
             while conn:
                 data = conn.recv(1024)  #R1, 4096 is recommand
