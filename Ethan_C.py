@@ -32,7 +32,7 @@ def get_control(UUT_IP, UUT_cmd):
         #192.168.0.178
         #10.110.141.78
 
-        s.send(b"Hello UUT!") #S0  UUT 掛掉的地方
+        #s.send(b"Hello UUT!") #S0  UUT 掛掉的地方
 
 
         #2==================================
