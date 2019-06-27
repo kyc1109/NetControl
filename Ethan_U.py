@@ -1,9 +1,6 @@
 #!/usr/bin/python3
 #coding=utf8
-#sys.setdefaultencoding('utf8')
-import sys, os
-
-
+import sys, os, ctypes, threading
 #被控端
 def getInfo():
     from uuid import getnode as get_mac
@@ -20,7 +17,7 @@ def getInfo():
 
     print("Host:",host)
     print("IP:",ip)
-    print("MAC",getMAC)
+    print("MAC:",getMAC)
     getUUID=uuid.uuid5(uuid.NAMESPACE_DNS, 'python.org')
     print("UUID:",uuid.NAMESPACE_DNS)
     return getMAC
@@ -35,13 +32,12 @@ from subprocess import Popen, PIPE
 from importlib import reload
 reload(sys)
 
-#0==================================                                #http://www.bogotobogo.com/python/python_network_programming_server_client_file_transfer.php
-port = 60001                    # Reserve a port for your service.
+#0==================================       #http://www.bogotobogo.com/python/python_network_programming_server_client_file_transfer.php
+port = 80808                    # Reserve a port for your service.
 s = socket.socket()             # Create a socket object
 host = socket.gethostname()     # Get local machine name
 s.bind((host, port))            # Bind to the port
 s.listen(5)                     # Now wait for client connection.
-
 
 def get_conn():
     #show here
@@ -53,69 +49,42 @@ def get_conn():
     #2==================================
         try:
             conn, addr = s.accept()     # Establish connection with client.
-            #print('Get connection from', addr) #get conn from server
-            #print('SUT received', conn.recv(1024).decode("utf-8")) #R0 Hello server!, repr() like as str()
+            print('Get connection from', addr) #get conn from server
+            #Hello=conn.recv(1024).decode("utf-8")
+            #print('SUT received:', Hello) #R0 Hello server!, repr() like as str()
 
             while conn:
+                sys.path.append(os.getenv('USERPROFILE'))
+                sys.path.append((os.getenv('USERPROFILE')+"\\Desktop") )
+                os.chdir((os.getenv('USERPROFILE')+"\\Desktop")) #change current dir from system32 to Desktop
+
                 data = conn.recv(1024)  #R1, 4096 is recommand
                 if not data:
                     pass
-                elif data.decode("utf-8").lower()=="a": #scan all of UUT
+                elif data.decode("utf-8").lower()=="__scan_uut__": #scan all of UUT
                     global host, ip, getMAC
-                    UUT_iInfo=[host,ip,getMAC]
-                    send_data2=" ".join(UUT_iInfo)
-                    print(" ".join(UUT_iInfo))
+                    UUT_iInfo=(host+","+getMAC+","+ip)
+                    send_data2=UUT_iInfo
+                    print(UUT_iInfo)
                     conn.sendall(send_data2.encode('utf-8'))
                     conn.close()
-                elif data.decode("utf-8").lower()=="r":
-                    dirname, filename = os.path.split(os.path.abspath(__file__))
-                    filename=filename.replace(".py", ".exe")
-                    filefullpathname=dirname+"\\"+filename
-                    regkey="HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
-                    os.system("reg delete "+regkey+" /v stress_"+filename.replace(".exe","")+" /f")
+                elif  data.decode("utf-8").lower()=="r" or data.decode("utf-8").lower()=="remove":
+                    remove()
                     conn.close()
-                    
+                #run cmd with data.decode("utf-8")
                 else:
-                    print("Receiving...: "+data.decode("utf-8")) #get data from control side
-                    #conn.sendall("Roger that.".encode('utf-8'))
-
-                    #execute controller's cmd
-                    p=subprocess.Popen(data.decode("utf-8"),shell=True, stdout=PIPE, stderr=PIPE, stdin=PIPE)
-                    stdout,stderr =p.communicate()
-                    print("type stderr",type(stdout))  #stdout is bytes              
-                    print("type stderr",type(stderr))    
-                    
-                    #print("send_data")
-                    data_str = data.decode("utf-8","ignore")
-
-                    #Do stderr later                 
-                    send_data = str("\nSUT got msg: \n===========START================\n"+
-                                "cmd: "+ data_str +"\n"+
-                                "stdout: \n"+stdout.decode("utf-8","ignore")+"\n"+
-                                #"stderr: \n"+stderr+"\n"+
-                                "\n===========END================\n")
-                    
-                    send_data2="OK, just do it." #to control
-                    print("sendall")
-                    try: #ack to Controller
-                        conn.sendall(send_data2.encode('utf-8')) #S1, buffer不足
-                        #while (send_data):
-                        #    conn.send(send_data)
-                        print("result... "+send_data)
-                    except:
-                        print("I/O error(10035)")
-
-
-                    print("\nSUT listening... ") #End of cmd...
-                    #getInfo()
+                    tt = threading.Thread(target=taskThread,args=(data.decode("utf-8"),))
+                    tt.start() 
                     conn.close()
         except IOError as e:
-            pass
-            #print "I/O error({0}): {1}".format(e.errno, e.strerror)
+            #pass
+            print("I/O error({0}): {1}".format(e.errno, e.strerror)) #0307 error code 10038
         except socket.error as msg:
             print("Socket Error: %s" % msg)
         except TypeError as msg:
             print("Type Error: %s" % msg)
+        except:
+            print("unknown error")
         finally: 
             #print('Successfully !')
             #print('Sending finished')
@@ -125,11 +94,34 @@ def get_conn():
             #print '\n\n\n Exit for error. Try to reopen' #fail 2
 #            get_conn() #re-listening
             #os.system("pause")
-def auto_run(): #bug auto run twice the place will be wrong, walk to solved it.
+def taskThread(cmd_str):
+    global cmd_previous 
+    if cmd_previous == cmd_str:
+        print("The cmd is the same, ignore it.")
+        cmd_str="echo The cmd is the same, ignore it."
+    else:
+        cmd_previous = cmd_str
+    p=subprocess.Popen(cmd_str,shell=True, stdout=PIPE, stderr=PIPE, stdin=PIPE)
+    stdout,stderr =p.communicate()
+
+    data_str = cmd_str
+    #Do stderr later                 
+    send_data = str("\nSUT got msg: \n===========START================\n"+
+                "cmd: "+ data_str +"\n"+
+                "stdout: \n"+stdout.decode("utf-8","ignore")+"\n"+
+                #"stderr: \n"+stderr+"\n"+
+                "\n===========END================\n")
+    
+    send_data2="OK, just do it." #to control
+    print("sendall")
+    try: #ack to Controller
+        print("result... "+send_data)
+    except:
+        print("I/O error(10035)")
+def auto_run():
     dirname, filename = os.path.split(os.path.abspath(__file__))
     filename=filename.replace(".py", ".exe")
     filefullpathname=dirname+"\\"+filename
-
     regkey="HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
     print("filename:",filename)
     os.chdir(os.environ['USERPROFILE']) # to find file itself
@@ -137,40 +129,82 @@ def auto_run(): #bug auto run twice the place will be wrong, walk to solved it.
         for file in files:
             if file == filename:
                 os.chdir(root)
-                #print(os.path.abspath(os.path.join(file)))
                 filefullpathname=os.path.abspath(os.path.join(root,file))
                 print(filefullpathname)
     try:
-        #print("regkey: ","reg add "+regkey+" /v stress_"+filename.replace(".exe","")+" /t REG_SZ /d "+filefullpathname+" /f")
         os.system("reg add "+regkey+" /v stress_"+filename.replace(".exe","")+" /t REG_SZ /d "+filefullpathname+" /f")
         print("auto run add ok")
         #os.system("timeout /t 10")
-
     except:
         print("auto run reg failed !!!")
         os.system("timeout /t 30")
-
     try:
         #remove auto run if argv1 is remove
         if sys.argv[1].lower()=="remove":
-            regkey="HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
-            os.system("reg delete "+regkey+" /v stress_"+filename.replace(".exe","")+" /f")
-            print("auto run remove ok")
+            remove()
             sys.exit(0)
     except:
         pass
+def remove():
+    dirname, filename = os.path.split(os.path.abspath(__file__))
+    filenameExe = filename.replace(".py", ".exe") #.py to .exe
+    regkey="HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+    os.system("reg delete "+regkey+" /v stress_"+filenameExe.replace(".exe","")+" /f") #original name is .py    
+
+    filenameini = filename.replace(".py", ".ini") #Ethan_U.ini
+    if os.path.exists(filenameini):
+        os.system("del /q "+filenameini)
+
+    ini = os.environ['SYSTEMROOT']+"\\system32\\"+filenameini
+    if os.path.exists(ini):
+        os.system("del /q "+ini)
+
+def first_run_check():
+    #Bug permission denied 
+    dirname, filename = os.path.split(os.path.abspath(__file__))
+    filename=filename.replace(".py", ".ini") #Ethan_U.ini
+    try:
+        if os.path.exists(filename):
+            if len(sys.argv)>1:
+                if sys.argv[1].lower()=="remove":
+                    remove()
+        else:
+            wLog=open(filename, "w")
+            wLog.write(filename)
+            wLog.close()
+            #os.system("attrib +h "+filename) #for hidden
+            auto_run()
+    except IOError as e:
+            #pass
+        print("I/O error({0}): {1}".format(e.errno, e.strerror)) #0307 error code 10038
+    except socket.error as msg:
+        print("Socket Error: %s" % msg)
+    except TypeError as msg:
+            print("Type Error: %s" % msg)
+    except:
+        print("can not catch error")
+    finally: #debug for permission denied
+        pass
+
+
+def is_admin(): #https://stackoverflow.com/questions/130763/request-uac-elevation-from-within-a-python-script
+        #os.chdir(os.path.join(os.getenv("USERPROFILE")+"\\Desktop"))
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, "", None, 1) #for py 3
+            #ctypes.windll.shell32.ShellExecuteW(None, u"runas", unicode(sys.executable), unicode(__file__), None, 1) #for py2
+            print("Not admin")
+            os.system("timeout /t 1")
+            return False
 
 if __name__ == "__main__":  # Start from here
     os.system('mode con: cols=50 lines=6') #set cmd window size
-    auto_run()
-    while True:
-        get_conn()
-
-"""
-Know issue buffer not ready 如果傳太多data會lose data
-Bug, 1. 對反應比較久或比較多資料的會斷線
-    eg 1. I/O error(10035): 無法立即完成通訊端操作，而且無法停止。
-    eg 2. delLog.exe
-    eg 3. FFXV install
-
-"""
+    #auto_run()
+    cmd_previous=""
+    if is_admin():  #check is admin or not
+        first_run_check() 
+        while True:
+            get_conn()
+    else:
+        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, __file__, None, 1)
